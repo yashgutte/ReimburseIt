@@ -27,18 +27,10 @@ function buildTransport() {
  */
 async function sendMail({ to, subject, text, html }) {
   if (!isMailConfigured()) {
-    console.log("not configured");
     return { sent: false, skipped: true, reason: "not_configured" };
   }
   try {
     const transporter = buildTransport();
-    console.log("transporter", transporter);
-    console.log("to", to);
-    console.log("subject", subject);
-    console.log("text", text);
-    console.log("html", html);
-    console.log("process.env.SMTP_FROM", process.env.SMTP_FROM);
-    console.log("process.env.SMTP_USER", process.env.SMTP_USER);
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to,

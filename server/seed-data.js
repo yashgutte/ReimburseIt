@@ -7,10 +7,8 @@ const seedData = async () => {
   // Use the real company already in the database — never create dummy data.
   const company = await Company.findOne({}).sort({ createdAt: 1 });
   if (!company) {
-    console.log("⚠️  No company found in DB. Skipping admin seed.");
     return;
   }
-  console.log(`🏢 Using company: "${company.name}" (${company._id})`);
 
   const adminEmail = "admin@gmail.com";
   const existing = await User.findOne({ email: adminEmail });
@@ -24,7 +22,6 @@ const seedData = async () => {
       existing.roles = ["admin"]; dirty = true;
     }
     if (dirty) await existing.save();
-    console.log(`👤 Admin exists: ${adminEmail} — no password changes made.`);
     return existing;
   }
 
@@ -39,7 +36,6 @@ const seedData = async () => {
     company_id: company._id,
     manager_id: null,
   });
-  console.log(`👤 Admin created: ${adminEmail} — default password: admin123`);
   return user;
 };
 

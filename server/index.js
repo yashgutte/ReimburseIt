@@ -117,7 +117,6 @@ async function start() {
 
     try {
       await seedData();
-      console.log("🌱 Seed data executed");
     } catch (err) {
       console.log("⚠️ Seed skipped or failed:", err.message);
     }
