@@ -423,9 +423,6 @@ export default function Adduser() {
                         >
                           <option value="employee">Employee</option>
                           <option value="manager">Manager</option>
-                          <option value="Director">Director</option>
-                          <option value="Team Lead">Team Lead</option>
-                          <option value="CFO">CFO</option>
                           <option value="admin">Admin</option>
                         </select>
                       </td>

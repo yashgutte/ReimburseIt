@@ -9,11 +9,22 @@ const {
 const ensureAuthenticated = require("../middlewares/Auth");
 const upload = require("../models/fileUpload");
 const uploadMemory = require("../models/fileUploadMemory");
+const { createRateLimiter } = require("../middlewares/rateLimit");
+const ocrLimiter = createRateLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  keyFn: (req) => `ocr:${req.user?._id || req.ip || "unknown"}`,
+});
 
 router.get("/mine", ensureAuthenticated, listMyExpenses);
 
-// Public: OCR only — no JWT (client sends companyCurrency in multipart body).
-router.post("/parse-receipt", uploadMemory.single("receipt"), parseReceiptOcr);
+router.post(
+  "/parse-receipt",
+  ensureAuthenticated,
+  ocrLimiter,
+  uploadMemory.single("receipt"),
+  parseReceiptOcr,
+);
 
 router.post("/", ensureAuthenticated, upload.single("receipt"), submitExpense);
 

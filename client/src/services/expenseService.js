@@ -1,10 +1,24 @@
 import axiosInstance from "../Authorisation/axiosConfig";
 
 const STORAGE_KEY = "rms_employee_expenses_v1";
+const PARTIAL_DATA_ERROR_CODE = "PARTIAL_EXPENSE_DATA";
 
-function loadRaw() {
+function normalizeScope(scope = {}) {
+  const userId = String(scope.userId || "").trim();
+  const companyId = String(scope.companyId || "").trim();
+  return { userId, companyId };
+}
+
+function storageKeyForScope(scope = {}) {
+  const { userId, companyId } = normalizeScope(scope);
+  if (userId && companyId) return `${STORAGE_KEY}_${companyId}_${userId}`;
+  if (userId) return `${STORAGE_KEY}_u_${userId}`;
+  return STORAGE_KEY;
+}
+
+function loadRaw(scope = {}) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKeyForScope(scope));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -13,8 +27,8 @@ function loadRaw() {
   }
 }
 
-function saveRaw(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+function saveRaw(list, scope = {}) {
+  localStorage.setItem(storageKeyForScope(scope), JSON.stringify(list));
 }
 
 function uid() {
@@ -73,9 +87,9 @@ function mapServerExpenseToRow(exp, employeeName) {
   };
 }
 
-function removeDraftById(id) {
-  const list = loadRaw().filter((e) => e.id !== id);
-  saveRaw(list);
+function removeDraftById(id, scope = {}) {
+  const list = loadRaw(scope).filter((e) => e.id !== id);
+  saveRaw(list, scope);
 }
 
 function buildDescription({ description, remarks, detailedDescription }) {
@@ -129,15 +143,11 @@ export async function submitExpensePayloadToServer(payload) {
   return data;
 }
 
-export async function fetchMyExpenses(employeeName = "") {
-  const localDrafts = loadRaw().filter(
-    (e) =>
-      e.status === "draft" &&
-      (employeeName
-        ? String(e.employeeName || "").trim() === String(employeeName).trim()
-        : true),
-  );
+export async function fetchMyExpenses({ employeeName = "", userId = "", companyId = "" } = {}) {
+  const scope = { userId, companyId };
+  const localDrafts = loadRaw(scope).filter((e) => e.status === "draft");
   let serverRows = [];
+  let partialData = false;
   try {
     const { data } = await axiosInstance.get("/api/expenses/mine");
     const expenses = data?.data?.expenses ?? [];
@@ -145,16 +155,18 @@ export async function fetchMyExpenses(employeeName = "") {
       ? expenses.map((e) => mapServerExpenseToRow(e, employeeName))
       : [];
   } catch (e) {
+    partialData = true;
     console.warn("fetchMyExpenses API:", e?.message || e);
   }
   const merged = [...localDrafts, ...serverRows];
-  return merged.sort(
+  const rows = merged.sort(
     (a, b) =>
       new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt),
   );
+  return { rows, partialData };
 }
 
-export async function createDraftExpense(partial = {}) {
+export async function createDraftExpense(partial = {}, scope = {}) {
   const now = new Date().toISOString();
   const row = {
     id: uid(),
@@ -174,14 +186,14 @@ export async function createDraftExpense(partial = {}) {
     createdAt: now,
     updatedAt: now,
   };
-  const list = loadRaw();
+  const list = loadRaw(scope);
   list.push(row);
-  saveRaw(list);
+  saveRaw(list, scope);
   return row;
 }
 
-export async function updateExpense(id, patch) {
-  const list = loadRaw();
+export async function updateExpense(id, patch, scope = {}) {
+  const list = loadRaw(scope);
   const i = list.findIndex((e) => e.id === id);
   if (i === -1) throw new Error("Expense not found");
   const cur = list[i];
@@ -194,7 +206,7 @@ export async function updateExpense(id, patch) {
     updatedAt: new Date().toISOString(),
   };
   list[i] = next;
-  saveRaw(list);
+  saveRaw(list, scope);
   return next;
 }
 
@@ -204,7 +216,8 @@ export async function updateExpense(id, patch) {
  */
 export async function submitExpense(id, options = {}) {
   const { receiptFile } = options;
-  const list = loadRaw();
+  const scope = options.scope || {};
+  const list = loadRaw(scope);
   const i = list.findIndex((e) => e.id === id);
   if (i === -1) throw new Error("Expense not found");
   const cur = list[i];
@@ -225,7 +238,7 @@ export async function submitExpense(id, options = {}) {
     detailedDescription: cur.detailedDescription,
     receiptFile: receiptFile || null,
   });
-  removeDraftById(id);
+  removeDraftById(id, scope);
   return { ok: true };
 }
 
@@ -288,3 +301,5 @@ export function statusLabel(status) {
       return status;
   }
 }
+
+export { PARTIAL_DATA_ERROR_CODE };

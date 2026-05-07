@@ -12,13 +12,19 @@ const {
 
 const upload = require("../models/fileUpload");
 const ensureAuthenticated = require("../middlewares/Auth");
+const { createRateLimiter } = require("../middlewares/rateLimit");
 
 const router = require("express").Router();
+const loginLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyFn: (req) => `login:${req.ip || "unknown"}`,
+});
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 // Signup is intentionally removed — only admin (seeded) can create accounts.
 // New users are created by admin via the invite flow (POST /api/admin/users/send-password).
-router.post("/login", loginValidation, login);
+router.post("/login", loginLimiter, loginValidation, login);
 
 // ─── Protected routes ─────────────────────────────────────────────────────────
 router.get("/profile", ensureAuthenticated, getProfile);

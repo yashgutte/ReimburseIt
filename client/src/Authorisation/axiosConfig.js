@@ -1,8 +1,12 @@
 import axios from "axios";
 
+if (import.meta.env.PROD && !import.meta.env.VITE_BACKEND_URL) {
+  throw new Error("Missing VITE_BACKEND_URL in production build.");
+}
+
 const axiosInstance = axios.create({
   // VITE_BACKEND_URL is set in .env (local) and in Vercel env variables (production)
-  baseURL: import.meta.env.VITE_BACKEND_URL || "http://localhost:8081",
+  baseURL: import.meta.env.VITE_BACKEND_URL || "http://localhost:8080",
   timeout: 30000, // 30 seconds (Cloudinary uploads can be slow on free tier)
   headers: {
     "Content-Type": "application/json",
@@ -48,6 +52,7 @@ axiosInstance.interceptors.response.use(
       localStorage.removeItem("rms_user");
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      window.dispatchEvent(new Event("rms:unauthorized"));
     }
 
     return Promise.reject(error);

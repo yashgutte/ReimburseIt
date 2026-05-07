@@ -51,6 +51,12 @@ function labelForRuleType(value) {
   return RULE_TYPE_OPTIONS.find((o) => o.value === value)?.label || value;
 }
 
+function hasRole(user, role) {
+  if (!user) return false;
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  return roles.includes(role) || user.role === role;
+}
+
 export default function ApprovalRules() {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +99,7 @@ export default function ApprovalRules() {
   const managers = useMemo(
     () =>
       directory.filter(
-        (u) => u.role === "manager" || u.role === "admin"
+        (u) => hasRole(u, "manager") || hasRole(u, "admin")
       ),
     [directory]
   );

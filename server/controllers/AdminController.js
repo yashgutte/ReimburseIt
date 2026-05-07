@@ -31,7 +31,9 @@ const createCompany = async (req, res) => {
 
 const listCompanies = async (req, res) => {
   try {
-    const companies = await Company.find().sort({ createdAt: -1 }).lean();
+    const companyId = req.user?.company_id;
+    if (!companyId) return stdErr(res, 400, "Missing company context for this admin.");
+    const companies = await Company.find({ _id: companyId }).sort({ createdAt: -1 }).lean();
     const payload = companies.map((c) => ({ id: c._id.toString(), name: c.name, country: c.country, currency_code: c.currency_code, created_at: c.createdAt }));
     return stdOk(res, 200, "OK", { companies: payload });
   } catch (err) { console.error("listCompanies:", err); return stdErr(res, 500, "Could not load companies."); }

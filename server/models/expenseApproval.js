@@ -24,4 +24,12 @@ const expenseApprovalSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+expenseApprovalSchema.index(
+  { expense_id: 1, approver_id: 1, step: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: "pending" },
+  },
+);
+
 module.exports = mongoose.model("ExpenseApproval", expenseApprovalSchema);

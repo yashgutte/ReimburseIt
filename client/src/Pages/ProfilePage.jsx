@@ -38,11 +38,14 @@ export default function ProfilePage() {
     run();
   }, [authUser?.id, authUser?._id]);
 
+  const backendBaseUrl =
+    import.meta.env.VITE_BACKEND_URL || window.location.origin;
+
   const profilePictureSrc =
     user?.profilePicture && typeof user.profilePicture === "string"
       ? user.profilePicture.startsWith("http")
         ? user.profilePicture
-        : `http://localhost:8080${user.profilePicture}`
+        : `${backendBaseUrl}${user.profilePicture}`
       : "https://flowbite.com/docs/images/people/profile-picture-3.jpg";
 
   const sidebarItems = getSidebarItemsForRole(authUser?.role);

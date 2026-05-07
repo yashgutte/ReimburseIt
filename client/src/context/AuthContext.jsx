@@ -30,8 +30,30 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem("rms_user");
     const savedToken = localStorage.getItem("rms_token");
     if (savedUser && savedToken) {
-      setAuth({ token: savedToken, user: JSON.parse(savedUser) });
+      try {
+        setAuth({ token: savedToken, user: JSON.parse(savedUser) });
+      } catch {
+        localStorage.removeItem("rms_token");
+        localStorage.removeItem("rms_user");
+        setAuth({ token: null, user: null });
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      localStorage.removeItem("rms_token");
+      localStorage.removeItem("rms_user");
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      setAuth({ token: null, user: null });
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    };
+
+    window.addEventListener("rms:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("rms:unauthorized", onUnauthorized);
   }, []);
 
   const login = (tokenValue, userValue) => {

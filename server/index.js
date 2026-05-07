@@ -20,12 +20,22 @@ const AdminRouter = require("./routes/AdminRouter");
 const UserRouter = require("./routes/UserRouter");
 const ExpenseRouter = require("./routes/ExpenseRouter");
 const ManagerRouter = require("./routes/ManagerRouter");
+const { createRateLimiter } = require("./middlewares/rateLimit");
 
 const app = express();
 
 require("./models");
 
 const PORT = process.env.PORT || 8080;
+if (!process.env.JWT_SECRET) {
+  throw new Error("Missing required environment variable: JWT_SECRET");
+}
+
+const forgotPasswordLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyFn: (req) => `forgot:${req.ip || "unknown"}`,
+});
 
 // Middleware
 app.use(bodyParser.json({ limit: "10mb" }));
@@ -66,6 +76,7 @@ app.options("*", cors(corsOptions));
 // Routes (forgot-password registered here first so it always resolves after server restarts)
 app.post(
   "/api/auth/forgot-password",
+  forgotPasswordLimiter,
   forgotPasswordValidation,
   forgotPassword,
 );

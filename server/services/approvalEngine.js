@@ -86,38 +86,97 @@ async function createInitialApprovals(expense, rule, employee) {
   }
 }
 
-async function advanceAfterApproval(expense, rule, actingApproval) {
+async function advanceAfterApproval(expense, rule, actingApproval, options = {}) {
+  const { session } = options;
   const { rule_type } = rule;
   const out = { newPendingApproverIds: [] };
   if (rule_type === "sequential") {
-    const employee = await User.findById(expense.submitted_by);
+    const employee = await User.findById(expense.submitted_by).session(session || null);
     const chain = buildSequentialChain(rule, employee);
-    const completed = await ExpenseApproval.countDocuments({ expense_id: expense._id, status: "approved" });
-    if (completed >= chain.length) { expense.status = "approved"; await expense.save(); return out; }
+    const completed = await ExpenseApproval.countDocuments({
+      expense_id: expense._id,
+      status: "approved",
+    }).session(session || null);
+    if (completed >= chain.length) {
+      expense.status = "approved";
+      await expense.save({ session });
+      return out;
+    }
     const nextApprover = chain[completed];
-    await ExpenseApproval.create({ expense_id: expense._id, approver_id: nextApprover, step: completed + 1, status: "pending" });
+    await ExpenseApproval.findOneAndUpdate(
+      {
+        expense_id: expense._id,
+        approver_id: nextApprover,
+        step: completed + 1,
+        status: "pending",
+      },
+      {
+        $setOnInsert: {
+          expense_id: expense._id,
+          approver_id: nextApprover,
+          step: completed + 1,
+          status: "pending",
+        },
+      },
+      { upsert: true, new: true, session },
+    );
     out.newPendingApproverIds.push(nextApprover);
-    expense.current_step = completed + 1; await expense.save(); return out;
+    expense.current_step = completed + 1;
+    await expense.save({ session });
+    return out;
   }
   if (rule_type === "percentage") {
     const minPct = rule.min_approval_pct || 50;
-    const stepRows = await ExpenseApproval.find({ expense_id: expense._id, step: 1 });
+    const stepRows = await ExpenseApproval.find({
+      expense_id: expense._id,
+      step: 1,
+    }).session(session || null);
     const total = stepRows.length;
     const approved = stepRows.filter((r) => r.status === "approved").length;
-    if (total > 0 && (approved / total) * 100 >= minPct) { expense.status = "approved"; await expense.save(); }
+    if (total > 0 && (approved / total) * 100 >= minPct) {
+      expense.status = "approved";
+      await expense.save({ session });
+    }
     return out;
   }
-  if (rule_type === "all") { expense.status = "approved"; await expense.save(); return out; }
-  if (rule_type === "specific") { expense.status = "approved"; await expense.save(); return out; }
+  if (rule_type === "all") {
+    const stepRows = await ExpenseApproval.find({
+      expense_id: expense._id,
+      step: 1,
+    }).session(session || null);
+    const total = stepRows.length;
+    const approved = stepRows.filter((r) => r.status === "approved").length;
+    if (total > 0 && approved >= total) {
+      expense.status = "approved";
+      await expense.save({ session });
+    }
+    return out;
+  }
+  if (rule_type === "specific") {
+    expense.status = "approved";
+    await expense.save({ session });
+    return out;
+  }
   if (rule_type === "hybrid") {
     const minPct = rule.min_approval_pct || 50;
     const specificId = rule.specific_approver_id?.toString();
-    if (specificId && actingApproval.approver_id.toString() === specificId) { expense.status = "approved"; await expense.save(); return out; }
-    const poolRows = await ExpenseApproval.find({ expense_id: expense._id, step: 1, comment: "hybrid:pool" });
+    if (specificId && actingApproval.approver_id.toString() === specificId) {
+      expense.status = "approved";
+      await expense.save({ session });
+      return out;
+    }
+    const poolRows = await ExpenseApproval.find({
+      expense_id: expense._id,
+      step: 1,
+      comment: "hybrid:pool",
+    }).session(session || null);
     if (poolRows.length === 0) return out;
     const total = poolRows.length;
     const approved = poolRows.filter((r) => r.status === "approved").length;
-    if (total > 0 && (approved / total) * 100 >= minPct) { expense.status = "approved"; await expense.save(); }
+    if (total > 0 && (approved / total) * 100 >= minPct) {
+      expense.status = "approved";
+      await expense.save({ session });
+    }
     return out;
   }
   return out;
@@ -132,12 +191,21 @@ async function fallbackManagerOnly(expense, employee) {
   }
 }
 
-async function rejectAllPending(expenseId) {
-  await ExpenseApproval.updateMany({ expense_id: expenseId, status: "pending" }, { status: "rejected", acted_at: new Date() });
+async function rejectAllPending(expenseId, options = {}) {
+  const { session } = options;
+  await ExpenseApproval.updateMany(
+    { expense_id: expenseId, status: "pending" },
+    { status: "rejected", acted_at: new Date() },
+    { session },
+  );
 }
 
-async function clearPendingApprovals(expenseId) {
-  await ExpenseApproval.deleteMany({ expense_id: expenseId, status: "pending" });
+async function clearPendingApprovals(expenseId, options = {}) {
+  const { session } = options;
+  await ExpenseApproval.deleteMany(
+    { expense_id: expenseId, status: "pending" },
+    { session },
+  );
 }
 
 module.exports = { findApplicableRule, createInitialApprovals, advanceAfterApproval, fallbackManagerOnly, buildSequentialChain, parallelPool, rejectAllPending, clearPendingApprovals };

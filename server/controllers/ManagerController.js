@@ -77,51 +77,116 @@ const listPendingApprovals = async (req, res) => {
 
 const approveExpense = async (req, res) => {
   let newPendingApproverIds = [];
+  let shouldNotify = false;
   try {
     const expenseId = req.params.expenseId;
     const approverId = req.user._id;
     const { comment } = req.body || {};
-    const approval = await ExpenseApproval.findOne({ expense_id: expenseId, approver_id: approverId, status: "pending" });
-    if (!approval) return err(res, 404, "No pending approval found for you on this expense.");
-    const expense = await Expense.findById(expenseId);
-    if (!expense) return err(res, 404, "Expense not found.");
-    if (expense.company_id.toString() !== req.user.company_id) return err(res, 403, "Access denied.");
-    approval.status = "approved"; approval.acted_at = new Date(); approval.comment = comment || null;
-    await approval.save();
-    const rule = expense.rule_id ? await ApprovalRule.findById(expense.rule_id) : null;
-    if (!rule) {
-      expense.status = "approved"; await expense.save();
-      await notifyAfterApproveCommit({ expenseId, actingApproverId: approverId, comment, newPendingApproverIds: [] });
-      return ok(res, 200, "Expense approved.", { expenseId });
+    const session = await Expense.startSession();
+    try {
+      await session.withTransaction(async () => {
+      const approval = await ExpenseApproval.findOneAndUpdate(
+        { expense_id: expenseId, approver_id: approverId, status: "pending" },
+        { $set: { status: "approved", acted_at: new Date(), comment: comment || null } },
+        { new: true, session },
+      );
+      if (!approval) throw new Error("NO_PENDING_APPROVAL");
+
+      const expense = await Expense.findById(expenseId).session(session);
+      if (!expense) throw new Error("EXPENSE_NOT_FOUND");
+      if (expense.company_id.toString() !== req.user.company_id) {
+        throw new Error("ACCESS_DENIED");
+      }
+
+      const rule = expense.rule_id
+        ? await ApprovalRule.findById(expense.rule_id).session(session)
+        : null;
+
+      if (!rule) {
+        expense.status = "approved";
+        await expense.save({ session });
+        await clearPendingApprovals(expense._id, { session });
+      } else {
+        const adv = await advanceAfterApproval(expense, rule, approval, { session });
+        newPendingApproverIds = adv?.newPendingApproverIds || [];
+        if (expense.status === "approved") {
+          await clearPendingApprovals(expense._id, { session });
+        }
+      }
+      shouldNotify = true;
+      });
+    } finally {
+      await session.endSession();
     }
-    const adv = await advanceAfterApproval(expense, rule, approval);
-    newPendingApproverIds = adv?.newPendingApproverIds || [];
-    const refreshed = await Expense.findById(expenseId);
-    if (refreshed.status === "approved") { await clearPendingApprovals(expense._id); }
-    await notifyAfterApproveCommit({ expenseId, actingApproverId: approverId, comment, newPendingApproverIds });
+    if (shouldNotify) {
+      await notifyAfterApproveCommit({
+        expenseId,
+        actingApproverId: approverId,
+        comment,
+        newPendingApproverIds,
+      });
+    }
     return ok(res, 200, "Expense approved.", { expenseId });
-  } catch (e) { console.error("approveExpense:", e); return err(res, 500, "Could not approve expense."); }
+  } catch (e) {
+    if (e.message === "NO_PENDING_APPROVAL") {
+      return err(res, 404, "No pending approval found for you on this expense.");
+    }
+    if (e.message === "EXPENSE_NOT_FOUND") return err(res, 404, "Expense not found.");
+    if (e.message === "ACCESS_DENIED") return err(res, 403, "Access denied.");
+    console.error("approveExpense:", e);
+    return err(res, 500, "Could not approve expense.");
+  }
 };
 
 const rejectExpense = async (req, res) => {
+  let shouldNotify = false;
   try {
     const expenseId = req.params.expenseId;
     const approverId = req.user._id;
     const { comment } = req.body || {};
     const reason = comment != null ? String(comment).trim() : "";
     if (!reason) return err(res, 400, "Rejection reason is required (sent to the employee).");
-    const approval = await ExpenseApproval.findOne({ expense_id: expenseId, approver_id: approverId, status: "pending" });
-    if (!approval) return err(res, 404, "No pending approval found for you on this expense.");
-    const expense = await Expense.findById(expenseId);
-    if (!expense) return err(res, 404, "Expense not found.");
-    if (expense.company_id.toString() !== req.user.company_id) return err(res, 403, "Access denied.");
-    approval.status = "rejected"; approval.acted_at = new Date(); approval.comment = reason;
-    await approval.save();
-    expense.status = "rejected"; await expense.save();
-    await rejectAllPending(expense._id);
-    await notifyAfterRejectCommit({ expenseId, actingApproverId: approverId, comment: reason });
+    const session = await Expense.startSession();
+    try {
+      await session.withTransaction(async () => {
+      const approval = await ExpenseApproval.findOneAndUpdate(
+        { expense_id: expenseId, approver_id: approverId, status: "pending" },
+        { $set: { status: "rejected", acted_at: new Date(), comment: reason } },
+        { new: true, session },
+      );
+      if (!approval) throw new Error("NO_PENDING_APPROVAL");
+
+      const expense = await Expense.findById(expenseId).session(session);
+      if (!expense) throw new Error("EXPENSE_NOT_FOUND");
+      if (expense.company_id.toString() !== req.user.company_id) {
+        throw new Error("ACCESS_DENIED");
+      }
+
+      expense.status = "rejected";
+      await expense.save({ session });
+      await rejectAllPending(expense._id, { session });
+      shouldNotify = true;
+      });
+    } finally {
+      await session.endSession();
+    }
+    if (shouldNotify) {
+      await notifyAfterRejectCommit({
+        expenseId,
+        actingApproverId: approverId,
+        comment: reason,
+      });
+    }
     return ok(res, 200, "Expense rejected.", { expenseId });
-  } catch (e) { console.error("rejectExpense:", e); return err(res, 500, "Could not reject expense."); }
+  } catch (e) {
+    if (e.message === "NO_PENDING_APPROVAL") {
+      return err(res, 404, "No pending approval found for you on this expense.");
+    }
+    if (e.message === "EXPENSE_NOT_FOUND") return err(res, 404, "Expense not found.");
+    if (e.message === "ACCESS_DENIED") return err(res, 403, "Access denied.");
+    console.error("rejectExpense:", e);
+    return err(res, 500, "Could not reject expense.");
+  }
 };
 
 module.exports = { listPendingApprovals, approveExpense, rejectExpense };

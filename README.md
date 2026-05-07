@@ -25,7 +25,7 @@ A modern multi-role expense reimbursement platform featuring configurable multi-
 
 ## Prerequisites
 
-- Node.js (v18 or higher)
+- Node.js (v20.19.0 or higher)
 - MongoDB Atlas account (or local MongoDB)
 - npm
 - Gemini API key (for OCR)
@@ -52,8 +52,9 @@ cd ../client && npm install
 ```env
 MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/reimburse_it?retryWrites=true&w=majority
 JWT_SECRET=your_secret
-PORT=8081
+PORT=8080
 NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
 
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -68,7 +69,7 @@ GEMINI_MODEL=gemini-2.5-flash
 
 **client/.env:**
 ```env
-VITE_BACKEND_URL=http://localhost:8081
+VITE_BACKEND_URL=http://localhost:8080
 ```
 
 ### 3. Start the Application
@@ -84,17 +85,16 @@ cd client && npm run dev
 ### 4. Access the Application
 
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8081
-- **Health Check**: http://localhost:8081/ping
+- **Backend API**: http://localhost:8080
+- **Health Check**: http://localhost:8080/ping
 
-> **First signup** automatically creates a Company (using your selected country's currency) and an Admin account.
+> **Account creation flow:** Public signup is disabled. Admin creates users from the dashboard via the invite/password flow.
 
 ---
 
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/signup` — Register + auto-create company and admin
 - `POST /api/auth/login` — Login, returns JWT
 - `POST /api/auth/forgot-password` — Send temp password via email
 
@@ -111,7 +111,7 @@ cd client && npm run dev
 ### Expenses
 - `GET /api/expenses/mine` — Own expenses
 - `POST /api/expenses` — Submit new expense
-- `POST /api/expenses/parse-receipt` — OCR receipt scan
+- `POST /api/expenses/parse-receipt` — OCR receipt scan (**authenticated**)
 
 ### Manager
 - `GET /api/manager/approvals` — Pending approval queue

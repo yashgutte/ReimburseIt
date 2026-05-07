@@ -11,7 +11,7 @@ const parseReceiptOcr = async (req, res) => {
     return res.status(200).json({ success: true, message: "OK", data });
   } catch (error) {
     console.error("parseReceiptOcr:", error);
-    return res.status(500).json({ success: false, message: error.message || "Could not read receipt." });
+    return res.status(500).json({ success: false, message: "Could not read receipt." });
   }
 };
 
@@ -71,7 +71,7 @@ const submitExpense = async (req, res) => {
     res.status(201).json({ success: true, message: "Expense submitted successfully", data: { expense: freshExpense } });
   } catch (error) {
     console.error("Submit Expense Error:", error);
-    res.status(500).json({ success: false, message: "Internal server error while submitting expense.", error: error.message });
+    res.status(500).json({ success: false, message: "Internal server error while submitting expense." });
   }
 };
 

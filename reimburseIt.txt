@@ -1,4 +1,0 @@
-Username: gutteyash26_db_user
-Pass: 0ssvjidDFsJ8hu6u
-
-mongodb+srv://gutteyash26_db_user:0ssvjidDFsJ8hu6u@cluster0.xe68jhf.mongodb.net/?appName=Cluster0

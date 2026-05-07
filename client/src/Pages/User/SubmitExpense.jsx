@@ -170,10 +170,15 @@ function defaultUploadForm() {
 export default function SubmitExpense() {
   const { user } = useContext(AuthContext);
   const employeeName = user?.name || "You";
+  const scope = {
+    userId: user?.id || user?._id || "",
+    companyId: user?.company_id || "",
+  };
   const baseCurrency = user?.company_currency || DEFAULT_BASE_CURRENCY;
   const ocrCurrencyOpts = { companyCurrency: baseCurrency };
 
   const [rows, setRows] = useState([]);
+  const [isPartialData, setIsPartialData] = useState(false);
   const [loading, setLoading] = useState(true);
   const [composer, setComposer] = useState(() => defaultComposer());
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -194,12 +199,16 @@ export default function SubmitExpense() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchMyExpenses(employeeName);
-      setRows(data);
+      const result = await fetchMyExpenses({ employeeName, ...scope });
+      setRows(result.rows);
+      setIsPartialData(Boolean(result.partialData));
+      if (result.partialData) {
+        toast.warn("Server data unavailable. Showing local drafts only.");
+      }
     } finally {
       setLoading(false);
     }
-  }, [employeeName]);
+  }, [employeeName, scope.userId, scope.companyId]);
 
   useEffect(() => {
     load();
@@ -209,7 +218,7 @@ export default function SubmitExpense() {
 
   const persistPatch = async (id, patch) => {
     try {
-      const updated = await updateExpense(id, patch);
+      const updated = await updateExpense(id, patch, scope);
       setRows((prev) => prev.map((r) => (r.id === id ? updated : r)));
       return updated;
     } catch (e) {
@@ -238,7 +247,7 @@ export default function SubmitExpense() {
         remarks: composer.remarks || "",
         amount,
         currencyCode: composer.currencyCode,
-      });
+      }, scope);
       setRows((prev) => [row, ...prev]);
       setComposer(defaultComposer());
       toast.success("Expense added");
@@ -310,7 +319,7 @@ export default function SubmitExpense() {
         currencyCode: uploadForm.currencyCode,
         detailedDescription: uploadForm.detailedDescription || "",
         receiptFileName: uploadForm.receiptFileName,
-      });
+      }, scope);
       await load();
       setUploadOpen(false);
       toast.success("Saved to your list");
@@ -387,7 +396,7 @@ export default function SubmitExpense() {
   const submitRow = async (id) => {
     try {
       const receiptFile = draftFilesRef.current.get(id) || null;
-      await submitExpense(id, { receiptFile });
+      await submitExpense(id, { receiptFile, scope });
       draftFilesRef.current.delete(id);
       await load();
       toast.success("Submitted for approval");
@@ -582,6 +591,11 @@ export default function SubmitExpense() {
             </Button>
           </CardHeader>
           <CardContent className="px-0">
+            {isPartialData && (
+              <div className="mx-4 mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                Server expenses could not be loaded. Showing local draft data only.
+              </div>
+            )}
             <input
               ref={attachDraftRef}
               type="file"
