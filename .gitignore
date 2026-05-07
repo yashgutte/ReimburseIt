@@ -1,0 +1,65 @@
+# ─── Dependencies ───────────────────────────────────────────────────────────
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# ─── Environment variables (NEVER commit these) ───────────────────────────────
+.env
+.env.local
+.env.*.local
+server/.env
+client/.env
+
+# ─── Build output ────────────────────────────────────────────────────────────
+dist/
+build/
+client/build/
+client/dist/
+
+# ─── Uploaded files (handled by Cloudinary in production) ────────────────────
+uploads/
+server/uploads/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.sublime*
+
+# ─── Runtime data ────────────────────────────────────────────────────────────
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ─── Test coverage ────────────────────────────────────────────────────────────
+coverage/
+client/coverage/
+.nyc_output/
+
+# ─── Caches ───────────────────────────────────────────────────────────────────
+.cache/
+client/.cache/
+.babel_cache/
+webpack.cache/
+
+# ─── Database files ───────────────────────────────────────────────────────────
+*.sqlite3
+*.db
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.tmp
+*.swp
+*.tgz
+.serverless/
+.next/
+out/
